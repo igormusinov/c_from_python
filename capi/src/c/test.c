@@ -6,6 +6,8 @@
 
 #include "test.h"
 #include "struct.h"
+#include <vector>
+
 
 // Список функций модуля
 static PyMethodDef methods[] = {
@@ -15,6 +17,13 @@ static PyMethodDef methods[] = {
     {"func_ret_str", func_ret_str, METH_VARARGS, "func_ret_str"},
     {"func_many_args", func_many_args, METH_VARARGS, "func_many_args"},
     {"func_ret_struct", func_ret_struct, METH_VARARGS, "func_ret_struct"},
+    {"add_to_counter", add_to_counter, METH_NOARGS, "add_to_counter"}, // изменяет counter в c коде
+
+    {"get_pointer_list", get_pointer_list, METH_NOARGS, "get_pointer_list"},    
+    {"get_list_by_pointer", get_list_by_pointer, METH_VARARGS, "get_list_by_pointer"},
+    {"get_list", get_list, METH_NOARGS, "get_list"}, // изменяет counter в c коде
+    {"set_list", set_list, METH_VARARGS, "set_list"}, // изменяет counter в c коде
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -32,6 +41,7 @@ PyInit__test(void) {
     PyModule_AddObject(mod, "a", PyLong_FromLong(a)); // int
     PyModule_AddObject(mod, "b", PyFloat_FromDouble(b)); // double
     PyModule_AddObject(mod, "c", Py_BuildValue("b", c)); // char
+    PyModule_AddObject(mod, "counter", PyLong_FromLong(counter)); // char
 
     // Добавляем структуру
     
@@ -52,6 +62,93 @@ PyInit__test(void) {
 int a = 5;
 double b = 5.12345;
 char c = 'X'; // 88
+int counter = 0;
+std::vector<int> list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+int intlist[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+static PyObject *
+get_pointer_list(PyObject *self, PyObject *args) { // Можно без args, но будет warning при компиляции.
+    return Py_BuildValue("L", &list);
+}
+
+static PyObject *
+get_list_by_pointer(PyObject *self, PyObject *args) { // Можно без args, но будет warning при компиляции.
+    long long pointer;
+
+    if (!PyArg_ParseTuple(args, "L", &pointer)) 
+        Py_RETURN_NONE;
+    std::intptr_t ptr = pointer;
+    std::vector<int> *_vec = reinterpret_cast<std::vector<int> *>(ptr);
+    std::vector<int> &vec = *_vec;
+
+    int size = vec.size();
+    PyObject* python_val = PyList_New(size);
+    for (int i = 0; i < size; ++i)
+    {
+        PyObject* python_int = Py_BuildValue("i", vec[i]);
+        PyList_SetItem(python_val, i, python_int);
+    }
+    return python_val;
+}
+
+static PyObject *
+get_list(PyObject *self, PyObject *args) { // Можно без args, но будет warning при компиляции.
+    int size = list.size();
+    PyObject* python_val = PyList_New(size);
+    for (int i = 0; i < size; ++i)
+    {
+        PyObject* python_int = Py_BuildValue("i", list[i]);
+        PyList_SetItem(python_val, i, python_int);
+    }
+    return python_val;
+}
+
+static PyObject *
+set_list(PyObject *self, PyObject *args) { // Можно без args, но будет warning при компиляции.
+    PyObject *obj;
+    long long pointer;
+
+    if (!PyArg_ParseTuple(args, "OL", &obj, &pointer)) 
+        Py_RETURN_NONE;
+    printf("Here is address: %lld\n", pointer);
+    std::intptr_t ptr = pointer;
+    std::vector<int> *_vec = reinterpret_cast<std::vector<int> *>(ptr);
+    std::vector<int> &vec = *_vec;
+
+    PyObject *iter = PyObject_GetIter(obj);
+    if (!iter) {
+        // error not iterator
+        Py_RETURN_NONE;
+    }
+
+    int i = 0;
+    while (true) {
+        PyObject *next = PyIter_Next(iter);
+        if (!next) {
+            // nothing left in the iterator
+            break;
+        }
+
+        if (!PyLong_Check(next)) {
+            // error, we were expecting a int value
+            Py_RETURN_NONE;
+        }
+
+        int foo = PyLong_AsLong(next);
+        // do something with foo
+
+        vec[i] = foo;
+        i++;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+add_to_counter(PyObject *self, PyObject *args) { // Можно без args, но будет warning при компиляции.
+    counter++;
+    return Py_BuildValue("i", counter);
+}
 
 static PyObject *
 func_hello(PyObject *self, PyObject *args) { // Можно без args, но будет warning при компиляции.

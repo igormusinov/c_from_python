@@ -1,4 +1,5 @@
-CC = gcc
+# CC = gcc
+CC = g++
 LINK = $(CC)
 STRIP = strip
 
